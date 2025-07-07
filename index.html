@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Time Zone Tango</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!--
+      Visuals tuned to match speed.btrbot.com → black canvas, centred bird logo,
+      small “gervi.ai” caption, bold title underneath.
+    -->
+    <style>
+      :root {
+        --bg: #000;  /* black backdrop */
+        --fg: #fff;  /* white text */
+        --accent: #888; /* muted grey for caption */
+        --border-radius: 8px;
+      }
+
+      /* ---------- Layout & Typography ---------- */
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        max-width: 420px;
+        margin: 0 auto;
+        padding: 1rem;
+        text-align: center;
+        line-height: 1.4;
+      }
+      h1 {
+        font-size: 2rem; /* 32 px */
+        font-weight: 700;
+        margin: 1.25rem 0 1.5rem 0; /* space above & below */
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+
+      /* ---------- Header ---------- */
+      header {
+        margin-bottom: 2rem;
+      }
+      .logo {
+        height: 96px;
+        width: auto;
+        display: block;
+        margin: 0 auto;
+      }
+      .caption {
+        font-size: 0.85rem;
+        color: var(--accent);
+        margin-top: 0.25rem;
+      }
+
+      /* ---------- Controls ---------- */
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-bottom: 1.75rem;
+      }
+      button {
+        border: 1px solid var(--fg);
+        border-radius: var(--border-radius);
+        padding: 6px 10px;
+        background: transparent;
+        color: var(--fg);
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button.active {
+        background: var(--fg);
+        color: var(--bg);
+      }
+      button:not(.active):hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      /* ---------- Slot Cards ---------- */
+      .slot {
+        border: 1px solid var(--fg);
+        border-radius: var(--border-radius);
+        padding: 0.85rem;
+        margin-top: 0.85rem;
+        text-align: left;
+      }
+      .slot p {
+        margin: 0.15rem 0;
+      }
+      .slot p:first-child {
+        font-weight: 600;
+      }
+
+      /* ---------- Footer ---------- */
+      footer {
+        margin-top: 2.25rem;
+        font-size: 0.8rem;
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header with centred logo & caption -->
+    <header>
+      <a href="https://gervi.ai" target="_blank" rel="noopener noreferrer">
+        <img src="assets/logo.png" alt="gervi logo" class="logo" />
+      </a>
+      <div class="caption">gervi.ai</div>
+    </header>
+
+    <h1>Time Zone Tango</h1>
+
+    <p>
+      Select the cities in your call — Time Zone Tango shows the next meeting times that
+      land inside <strong>08:00‑18:00</strong> for everyone.
+    </p>
+
+    <div id="zoneButtons" class="grid"></div>
+
+    <div id="slots"></div>
+
+    <footer>
+      A butter‑bot by <a href="https://btrbot.com">btrbot.com</a>
+    </footer>
+
+    <!-- -------------------------------------------------- -->
+    <!-- JavaScript → identical logic, only visuals changed -->
+    <!-- -------------------------------------------------- -->
+    <script>
+      const ZONES = [
+        { label: "Paris", tz: "Europe/Paris" },
+        { label: "Pune", tz: "Asia/Kolkata" },
+        { label: "San Francisco", tz: "America/Los_Angeles" },
+        { label: "New York", tz: "America/New_York" },
+        { label: "Singapore", tz: "Asia/Singapore" },
+        { label: "Melbourne", tz: "Australia/Melbourne" },
+      ];
+      const BUSINESS_START = 8, BUSINESS_END = 18;
+
+      const addMinutes = (d, m) => new Date(d.getTime() + m * 60000);
+      const inBusiness = (utc, tz) => {
+        const h = Number(
+          new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false }).format(utc)
+        );
+        return h >= BUSINESS_START && h < BUSINESS_END;
+      };
+      const hhmm = (utc, tz) =>
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: tz,
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }).format(utc);
+      const formatUTC = (date) =>
+        `${date.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })} ${date
+          .toISOString()
+          .substring(11, 16)} UTC`;
+      const nextSlots = (sel) => {
+        const now = new Date();
+        const start = addMinutes(now, 30 - (now.getMinutes() % 30 || 30));
+        const out = [];
+        for (let step = 0; step < 48 && out.length < 6; step++) {
+          const slot = addMinutes(start, step * 30);
+          if (sel.every((tz) => inBusiness(slot, tz))) out.push(slot);
+        }
+        return out;
+      };
+
+      const active = new Set(["Europe/Paris", "Asia/Kolkata", "America/Los_Angeles"]);
+      const zoneButtonsEl = document.getElementById("zoneButtons");
+      const slotsEl = document.getElementById("slots");
+
+      function renderZones() {
+        zoneButtonsEl.innerHTML = "";
+        ZONES.forEach(({ label, tz }) => {
+          const btn = document.createElement("button");
+          btn.textContent = label;
+          btn.className = active.has(tz) ? "active" : "";
+          btn.onclick = () => {
+            active.has(tz) ? active.delete(tz) : active.add(tz);
+            renderZones();
+            renderSlots();
+          };
+          zoneButtonsEl.appendChild(btn);
+        });
+      }
+
+      function renderSlots() {
+        slotsEl.innerHTML = "";
+        const sel = Array.from(active);
+        const list = nextSlots(sel);
+        if (list.length === 0) {
+          slotsEl.textContent = "No common slots in the next 24 h.";
+          return;
+        }
+        list.forEach((utc) => {
+          const card = document.createElement("div");
+          card.className = "slot";
+          const head = document.createElement("p");
+          head.textContent = formatUTC(utc);
+          card.appendChild(head);
+          sel.forEach((tz) => {
+            const label = ZONES.find((z) => z.tz === tz)?.label || tz;
+            const row = document.createElement("p");
+            row.innerHTML = `<strong>${label}:</strong> ${hhmm(utc, tz)}`;
+            card.appendChild(row);
+          });
+          slotsEl.appendChild(card);
+        });
+      }
+
+      // Initial render
+      renderZones();
+      renderSlots();
+    </script>
+  </body>
+</html>
